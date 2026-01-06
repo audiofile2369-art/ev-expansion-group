@@ -61,8 +61,19 @@ body {
 
 .logo h1 {
     font-size: 1.5rem;
-    color: var(--primary-color);
     font-weight: 700;
+}
+
+.logo-ev {
+    color: var(--primary-color);
+}
+
+.logo-expansion {
+    color: #2563eb;
+}
+
+.logo-group {
+    color: #64748b;
 }
 
 .nav-links {
