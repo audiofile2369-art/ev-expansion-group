@@ -53,10 +53,10 @@ body {
 }
 
 .hero-logo {
-    max-width: 1000px;
+    max-width: 850px;
     width: 100%;
     height: auto;
-    margin: 0;
+    margin: 0 auto 0 60px;
     display: block;
 }
 
@@ -181,20 +181,20 @@ body {
 /* Products Section */
 .products {
     padding: 80px 20px;
-    background: var(--light-color);
+    background: #0a0a0a;
 }
 
 .products h2 {
     text-align: center;
     font-size: 2.5rem;
     margin-bottom: 1rem;
-    color: var(--dark-color);
+    color: white;
 }
 
 .products-intro {
     text-align: center;
     font-size: 1.1rem;
-    color: var(--text-color);
+    color: #a0a0a0;
     margin-bottom: 2rem;
 }
 
@@ -205,16 +205,18 @@ body {
 }
 
 .product-card {
-    background: white;
+    background: #1a1a1a;
     border-radius: 12px;
-    box-shadow: 0 5px 20px rgba(0, 0, 0, 0.08);
+    box-shadow: 0 5px 20px rgba(0, 0, 0, 0.3);
     transition: all 0.3s ease;
     overflow: hidden;
+    border: 1px solid #2a2a2a;
 }
 
 .product-card:hover {
     transform: translateY(-10px);
-    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
+    box-shadow: 0 10px 30px rgba(16, 185, 129, 0.3);
+    border-color: var(--primary-color);
 }
 
 .product-image {
@@ -247,12 +249,12 @@ body {
 .product-card h3 {
     font-size: 1.5rem;
     margin-bottom: 0.5rem;
-    color: var(--dark-color);
+    color: white;
 }
 
 .product-subtitle {
     font-size: 0.9rem;
-    color: var(--secondary-color);
+    color: var(--primary-color);
     font-weight: 600;
     margin-bottom: 1rem !important;
     text-transform: uppercase;
@@ -261,7 +263,7 @@ body {
 
 .product-card p {
     margin-bottom: 1rem;
-    color: var(--text-color);
+    color: #b0b0b0;
     line-height: 1.6;
 }
 
@@ -272,7 +274,7 @@ body {
 
 .product-card ul li {
     padding: 0.5rem 0;
-    color: var(--text-color);
+    color: #d0d0d0;
 }
 
 .product-card ul li:before {
@@ -285,14 +287,14 @@ body {
 /* Solutions Section */
 .solutions {
     padding: 80px 20px;
-    background: white;
+    background: #000000;
 }
 
 .solutions h2 {
     text-align: center;
     font-size: 2.5rem;
     margin-bottom: 3rem;
-    color: var(--dark-color);
+    color: white;
 }
 
 .solutions-content {
@@ -304,26 +306,30 @@ body {
 .solution-item {
     padding: 1.5rem;
     border-left: 4px solid var(--primary-color);
-    background: var(--light-color);
+    background: #1a1a1a;
 }
 
 .solution-item h3 {
     font-size: 1.25rem;
     margin-bottom: 0.5rem;
-    color: var(--dark-color);
+    color: white;
+}
+
+.solution-item p {
+    color: #b0b0b0;
 }
 
 /* About Section */
 .about {
     padding: 80px 20px;
-    background: var(--light-color);
+    background: #0a0a0a;
 }
 
 .about h2 {
     text-align: center;
     font-size: 2.5rem;
     margin-bottom: 2rem;
-    color: var(--dark-color);
+    color: white;
 }
 
 .about-content {
@@ -335,6 +341,7 @@ body {
 .about-content p {
     font-size: 1.1rem;
     margin-bottom: 1.5rem;
+    color: #b0b0b0;
 }
 
 .stats {
@@ -355,20 +362,20 @@ body {
 }
 
 .stat p {
-    color: var(--text-color);
+    color: #b0b0b0;
 }
 
 /* Contact Section */
 .contact {
     padding: 80px 20px;
-    background: white;
+    background: #000000;
 }
 
 .contact h2 {
     text-align: center;
     font-size: 2.5rem;
     margin-bottom: 3rem;
-    color: var(--dark-color);
+    color: white;
 }
 
 .contact-form {
@@ -390,7 +397,7 @@ body {
     display: block;
     margin-bottom: 0.5rem;
     font-weight: 500;
-    color: var(--dark-color);
+    color: white;
 }
 
 .form-group input,
@@ -398,7 +405,9 @@ body {
 .form-group textarea {
     width: 100%;
     padding: 12px;
-    border: 1px solid var(--border-color);
+    border: 1px solid #2a2a2a;
+    background: #1a1a1a;
+    color: white;
     border-radius: 5px;
     font-size: 1rem;
     font-family: inherit;
@@ -413,9 +422,10 @@ body {
 
 /* Footer */
 footer {
-    background: var(--dark-color);
+    background: #0a0a0a;
     color: white;
     padding: 3rem 20px 1rem;
+    border-top: 2px solid var(--primary-color);
 }
 
 .footer-content {
