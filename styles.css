@@ -48,8 +48,15 @@ body {
 }
 
 .logo-img {
-    height: 80px;
+    height: 60px;
     width: auto;
+}
+
+.hero-logo {
+    max-width: 400px;
+    width: 100%;
+    height: auto;
+    margin-bottom: 2rem;
 }
 
 .logo h1 {
@@ -447,6 +454,14 @@ footer {
     .nav-links {
         gap: 1rem;
         font-size: 0.9rem;
+    }
+
+    .logo-img {
+        height: 50px;
+    }
+
+    .hero-logo {
+        max-width: 280px;
     }
 
     .hero-content h2 {
