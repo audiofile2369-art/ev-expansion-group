@@ -53,7 +53,7 @@ body {
 }
 
 .hero-logo {
-    max-width: 400px;
+    max-width: 700px;
     width: 100%;
     height: auto;
     margin-bottom: 2rem;
@@ -95,8 +95,7 @@ body {
 
 /* Hero Section */
 .hero {
-    background: linear-gradient(135deg, rgba(16, 185, 129, 0.95), rgba(5, 150, 105, 0.95)),
-                url('https://images.unsplash.com/photo-1593941707882-a5bba14938c7?w=1600&auto=format&fit=crop') center/cover;
+    background: #000000;
     color: white;
     padding: 120px 20px;
     text-align: center;
@@ -104,12 +103,7 @@ body {
 }
 
 .hero-overlay {
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: linear-gradient(135deg, rgba(16, 185, 129, 0.9), rgba(5, 150, 105, 0.85));
+    display: none;
 }
 
 .hero-content {
@@ -473,7 +467,7 @@ footer {
     }
 
     .hero-logo {
-        max-width: 280px;
+        max-width: 500px;
     }
 
     .hero-content h2 {
