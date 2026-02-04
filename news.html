@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Stay updated with the latest EV industry news, charging infrastructure developments, and electric vehicle trends">
+    <title>EV News & Industry Updates | EV Expansion Group</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="news.css">
+</head>
+<body>
+    <header>
+        <nav class="navbar">
+            <div class="container">
+                <ul class="nav-links">
+                    <li><a href="index.html">Home</a></li>
+                    <li><a href="index.html#solutions">Solutions</a></li>
+                    <li><a href="news.html" class="active">EV News</a></li>
+                    <li><a href="index.html#about">About</a></li>
+                    <li><a href="index.html#contact">Contact</a></li>
+                </ul>
+            </div>
+        </nav>
+    </header>
+
+    <main>
+        <section class="news-hero">
+            <div class="container">
+                <img src="ev_image_3.png" alt="EV Charging" class="news-hero-image">
+                <h1>EV Industry News</h1>
+                <p>Stay informed with the latest developments in electric vehicles and charging infrastructure</p>
+            </div>
+        </section>
+
+        <section class="news-feed">
+            <div class="container">
+                <div class="news-filters">
+                    <button class="filter-btn active" data-filter="all">All News</button>
+                    <button class="filter-btn" data-filter="infrastructure">Infrastructure</button>
+                    <button class="filter-btn" data-filter="policy">Policy & Grants</button>
+                    <button class="filter-btn" data-filter="technology">Technology</button>
+                    <button class="filter-btn" data-filter="market">Market Trends</button>
+                </div>
+
+                <div class="news-grid" id="news-container">
+                    <div class="loading-spinner">
+                        <div class="spinner"></div>
+                        <p>Loading latest EV news...</p>
+                    </div>
+                </div>
+
+                <div class="load-more-container">
+                    <button id="load-more" class="btn btn-primary" style="display: none;">Load More Articles</button>
+                </div>
+            </div>
+        </section>
+
+        <section class="newsletter-signup">
+            <div class="container">
+                <div class="newsletter-content">
+                    <h2>Stay in the Loop</h2>
+                    <p>Get weekly EV industry updates and grant opportunities delivered to your inbox</p>
+                    <form class="newsletter-form" id="newsletter-form">
+                        <input type="email" placeholder="Enter your email" required>
+                        <button type="submit" class="btn btn-primary">Subscribe</button>
+                    </form>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <footer>
+        <div class="container">
+            <div class="footer-content">
+                <div class="footer-section">
+                    <h4>EV Expansion Group</h4>
+                    <p>EV Charging Infrastructure</p>
+                    <p>Grant Assistance Experts</p>
+                </div>
+                <div class="footer-section">
+                    <h4>Quick Links</h4>
+                    <ul>
+                        <li><a href="index.html">Home</a></li>
+                        <li><a href="index.html#solutions">Solutions</a></li>
+                        <li><a href="news.html">EV News</a></li>
+                        <li><a href="index.html#contact">Contact</a></li>
+                    </ul>
+                </div>
+                <div class="footer-section">
+                    <h4>Contact</h4>
+                    <p>Email: info@evexpansiongroup.com</p>
+                    <p>Phone: 1-800-EV-EXPAND</p>
+                </div>
+            </div>
+            <div class="footer-bottom">
+                <p>&copy; 2026 EV Expansion Group. All rights reserved.</p>
+            </div>
+        </div>
+    </footer>
+
+    <script src="news.js"></script>
+</body>
+</html>

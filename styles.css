@@ -219,8 +219,10 @@ body {
 }
 
 .product-icon {
-    font-size: 3rem;
-    margin-bottom: 1rem;
+    font-size: 4rem;
+    margin-bottom: 1.5rem;
+    display: block;
+    text-align: center;
 }
 
 .product-card h3 {
