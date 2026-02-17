@@ -13,7 +13,6 @@
         <div class="login-card">
             <img src="NEW LOGO.png" alt="EV Expansion Group Logo" class="login-logo">
             <h1>Portal Access</h1>
-            <p class="login-subtitle">Secure workspace for project maps and uploads</p>
             <form id="portal-login-form" class="login-form">
                 <div class="form-field">
                     <label for="portal-email">Work Email</label>
@@ -24,8 +23,25 @@
                     <input id="portal-password" name="password" type="password" placeholder="Enter password" required>
                 </div>
                 <button type="submit" class="btn-primary full-width">Sign In</button>
-                <p class="helper-text">Demo access: team@evexpansiongroup.com / chargeon!</p>
                 <p id="login-error" class="error-text" role="alert" aria-live="polite"></p>
+                <button type="button" id="show-register" class="ghost-btn full-width">Create account</button>
+            </form>
+            <form id="portal-register-form" class="login-form hidden">
+                <div class="form-field">
+                    <label for="register-email">Work Email</label>
+                    <input id="register-email" name="email" type="email" placeholder="team@evexpansiongroup.com" required>
+                </div>
+                <div class="form-field">
+                    <label for="register-password">Password</label>
+                    <input id="register-password" name="password" type="password" placeholder="Create password" required>
+                </div>
+                <div class="form-field">
+                    <label for="register-confirm">Confirm Password</label>
+                    <input id="register-confirm" name="confirm" type="password" placeholder="Confirm password" required>
+                </div>
+                <button type="submit" class="btn-primary full-width">Create Account</button>
+                <p id="register-error" class="error-text" role="alert" aria-live="polite"></p>
+                <button type="button" id="show-login" class="ghost-btn full-width">Back to sign in</button>
             </form>
         </div>
     </div>
