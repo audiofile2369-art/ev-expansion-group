@@ -1,19 +1,11 @@
 {
+  "trailingSlash": false,
   "rewrites": [
-    {
-      "source": "/api/:path*",
-      "has": [{ "type": "host", "value": "portal.evexpansiongroup.com" }],
-      "destination": "/api/:path*"
-    },
-    {
-      "source": "/",
-      "has": [{ "type": "host", "value": "portal.evexpansiongroup.com" }],
-      "destination": "/portal/index.html"
-    },
     {
       "source": "/:path*",
       "has": [{ "type": "host", "value": "portal.evexpansiongroup.com" }],
       "destination": "/portal/:path*"
     }
-  ]
+  ],
+  "redirects": []
 }
