@@ -226,26 +226,39 @@ function readFile(file) {
             const ext = file.name.split(".").pop().toLowerCase();
             const content = reader.result;
             let parsed = [];
+            let polygonCount = 0;
 
             if (ext === "kml") {
+                // Check for polygons first
+                const parser = new DOMParser();
+                const xml = parser.parseFromString(content, "text/xml");
+                polygonCount = xml.getElementsByTagName("Polygon").length;
                 parsed = parseKML(content);
             } else if (ext === "csv") {
                 parsed = parseCSV(content);
             }
 
-            if (!parsed.length) {
-                alert(`No landmarks found in ${file.name}.`);
+            // Success if we have points OR polygons
+            if (!parsed.length && polygonCount === 0) {
+                alert(`No landmarks or polygons found in ${file.name}.`);
                 return;
             }
 
-            addLandmarks(parsed, file.name);
+            if (parsed.length) {
+                addLandmarks(parsed, file.name);
+            }
+            
             state.files.unshift({
                 name: file.name,
                 type: ext.toUpperCase(),
-                count: parsed.length,
+                count: parsed.length || polygonCount,
                 addedAt: new Date().toLocaleString()
             });
             refreshUI();
+            
+            if (polygonCount > 0 && !parsed.length) {
+                alert(`Loaded ${polygonCount} polygon areas from ${file.name}`);
+            }
         } catch (err) {
             console.error(err);
             alert(`Unable to process ${file.name}. Please confirm the format.`);
@@ -263,9 +276,36 @@ function parseKML(content) {
     const xml = parser.parseFromString(content, "text/xml");
     const placemarks = Array.from(xml.getElementsByTagName("Placemark"));
     const landmarks = [];
+    const polygonShapes = [];
 
     placemarks.forEach((pm, idx) => {
         const name = pm.getElementsByTagName("name")[0]?.textContent?.trim() || `Landmark ${idx + 1}`;
+        
+        // Check if this placemark contains a polygon
+        const polygon = pm.getElementsByTagName("Polygon")[0];
+        if (polygon) {
+            const coordsNode = polygon.getElementsByTagName("coordinates")[0];
+            if (coordsNode) {
+                const coordsText = coordsNode.textContent?.trim();
+                if (coordsText) {
+                    const ring = coordsText.split(/\s+/).map(pair => {
+                        const parts = pair.split(",");
+                        const lng = parseFloat(parts[0]);
+                        const lat = parseFloat(parts[1]);
+                        // parts[2] is altitude, ignored
+                        if (Number.isNaN(lat) || Number.isNaN(lng)) return null;
+                        return [lat, lng];
+                    }).filter(Boolean);
+                    
+                    if (ring.length >= 3) {
+                        polygonShapes.push({ name, ring });
+                    }
+                }
+            }
+            return; // Don't also treat as point
+        }
+        
+        // Handle as point landmark
         const coordText = pm.getElementsByTagName("coordinates")[0]?.textContent?.trim();
         if (!coordText) return;
         const firstCoord = coordText.split(/\s+/).find(Boolean);
@@ -277,7 +317,36 @@ function parseKML(content) {
         landmarks.push({ name, lat, lng, group: "general", source: "KML" });
     });
 
+    // If we found polygons, add them to the map as a layer
+    if (polygonShapes.length > 0) {
+        addPolygonsToMap(polygonShapes);
+    }
+
     return landmarks;
+}
+
+// Track uploaded polygon layers so they can be toggled/removed
+let uploadedPolygonLayers = [];
+
+function addPolygonsToMap(polygonShapes) {
+    if (!isMapReady) return;
+    
+    const shapes = polygonShapes.map(({ name, ring }) => {
+        return L.polygon(ring, {
+            color: "#10b981",
+            weight: 2,
+            fillOpacity: 0.25
+        }).bindPopup(`<strong>${name}</strong>`);
+    });
+    
+    const layer = L.layerGroup(shapes).addTo(map);
+    uploadedPolygonLayers.push(layer);
+    
+    // Fit map to show all polygons
+    const allLatLngs = polygonShapes.flatMap(p => p.ring);
+    if (allLatLngs.length > 0) {
+        map.fitBounds(allLatLngs, { padding: [20, 20] });
+    }
 }
 
 async function loadOverlay(addToMap = true) {
