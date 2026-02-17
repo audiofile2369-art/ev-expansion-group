@@ -158,14 +158,25 @@ function wireLogin() {
 }
 
 async function hydrateSession() {
+    // Handle OAuth callback - clean up URL params after redirect
+    const url = new URL(window.location.href);
+    if (url.searchParams.has("code") || url.searchParams.has("state")) {
+        // OAuth callback detected - give Neon Auth a moment to set the session cookie
+        await new Promise(r => setTimeout(r, 500));
+        // Clean up URL
+        window.history.replaceState({}, document.title, url.pathname);
+    }
+
     try {
         const res = await neonAuthFetch("/get-session", "GET");
         const data = await res.json().catch(() => null);
+        console.log("Session check:", data);
         if (data && data.user) {
             state.user = data.user;
             await enterPortal();
         }
-    } catch (_) {
+    } catch (err) {
+        console.error("Session check failed:", err);
         // No active session — stay on login screen
     }
 }
