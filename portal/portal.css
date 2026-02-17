@@ -430,12 +430,17 @@ a {
 }
 
 .login-card .ghost-btn {
-    color: #0f172a;
-    border-color: #cbd5e1;
+    color: var(--muted);
+    border: none;
+    padding: 6px 0;
+    font-size: 13px;
+    font-weight: 400;
+    text-decoration: underline;
 }
 
 .login-card .ghost-btn:hover {
-    border-color: #0f172a;
+    color: var(--primary-color);
+    transform: none;
 }
 
 @media (max-width: 1080px) {
