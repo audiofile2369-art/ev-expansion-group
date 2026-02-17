@@ -429,6 +429,15 @@ a {
     margin: 4px 0 0 0;
 }
 
+.login-card .ghost-btn {
+    color: #0f172a;
+    border-color: #cbd5e1;
+}
+
+.login-card .ghost-btn:hover {
+    border-color: #0f172a;
+}
+
 @media (max-width: 1080px) {
     .portal-layout {
         grid-template-columns: 1fr;

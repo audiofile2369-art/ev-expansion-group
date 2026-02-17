@@ -4,7 +4,7 @@ const util = require("util");
 
 const scryptAsync = util.promisify(crypto.scrypt);
 const tokenSecret = process.env.PORTAL_TOKEN_SECRET || "dev-portal-secret";
-const connectionString = process.env.DATABASE_URL || process.env.POSTGRES_URL;
+const connectionString = process.env.DATABASE_URL || process.env.POSTGRES_URL || process.env.POSTGRES_URL_NON_POOLING || process.env.POSTGRES_PRISMA_URL;
 
 module.exports = async function handler(req, res) {
     res.setHeader("Content-Type", "application/json");
@@ -81,8 +81,11 @@ function signToken(email) {
 }
 
 function verifyToken(token) {
-    const [email, sig] = (token || "").split(":");
-    if (!email || !sig) return null;
+    const idx = (token || "").indexOf(":");
+    if (idx < 1) return null;
+    const email = token.slice(0, idx);
+    const sig = token.slice(idx + 1);
+    if (!sig) return null;
     const expected = crypto.createHmac("sha256", tokenSecret).update(email).digest("hex");
     try {
         if (crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(expected))) {
