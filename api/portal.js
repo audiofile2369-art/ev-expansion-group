@@ -4,7 +4,7 @@ const util = require("util");
 
 const scryptAsync = util.promisify(crypto.scrypt);
 const tokenSecret = process.env.PORTAL_TOKEN_SECRET || "dev-portal-secret";
-const connectionString = process.env.NEON_DATABASE_URL || process.env.NEON_DB_URL;
+const connectionString = process.env.DATABASE_URL || process.env.POSTGRES_URL;
 
 module.exports = async function handler(req, res) {
     res.setHeader("Content-Type", "application/json");
