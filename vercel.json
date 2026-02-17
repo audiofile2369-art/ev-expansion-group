@@ -1,0 +1,9 @@
+{
+  "rewrites": [
+    {
+      "source": "/(.*)",
+      "has": [{ "type": "host", "value": "portal.evexpansiongroup.com" }],
+      "destination": "/portal/$1"
+    }
+  ]
+}
