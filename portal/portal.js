@@ -171,8 +171,9 @@ async function hydrateSession() {
         const res = await neonAuthFetch("/get-session", "GET");
         const data = await res.json().catch(() => null);
         console.log("Session check:", data);
-        if (data && data.user) {
-            state.user = data.user;
+        // Neon Auth returns { user: {...}, session: {...} }
+        if (data && (data.user || data.session)) {
+            state.user = data.user || data.session?.user || data;
             await enterPortal();
         }
     } catch (err) {
