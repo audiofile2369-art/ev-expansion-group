@@ -3,12 +3,12 @@ const state = {
     landmarks: [],
     files: [],
     filter: "all",
-    userEmail: null
+    jwt: null,
+    user: null
 };
 
+const NEON_AUTH_URL = "https://ep-dawn-credit-aihwzzk3.neonauth.c-4.us-east-1.aws.neon.tech/neondb/auth";
 const API_BASE = "/api/portal";
-const AUTH_TOKEN_KEY = "evxPortalToken";
-const AUTH_EMAIL_KEY = "evxPortalEmail";
 
 let map;
 let markersLayer;
@@ -25,17 +25,55 @@ document.addEventListener("DOMContentLoaded", () => {
     hydrateSession();
 });
 
-function setAuth(email, token) {
-    state.userEmail = email;
-    localStorage.setItem(AUTH_EMAIL_KEY, email);
-    localStorage.setItem(AUTH_TOKEN_KEY, token);
+// ---------------------------------------------------------------------------
+// Neon Auth helpers
+// ---------------------------------------------------------------------------
+
+async function neonAuthFetch(path, method, body) {
+    const opts = {
+        method: method || "GET",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" }
+    };
+    if (body !== undefined && method !== "GET") {
+        opts.body = JSON.stringify(body);
+    }
+    return fetch(`${NEON_AUTH_URL}${path}`, opts);
 }
 
-function clearAuth() {
-    state.userEmail = null;
-    localStorage.removeItem(AUTH_EMAIL_KEY);
-    localStorage.removeItem(AUTH_TOKEN_KEY);
+async function getJWT() {
+    const res = await neonAuthFetch("/token", "GET");
+    if (!res.ok) return null;
+    const data = await res.json().catch(() => null);
+    return data?.token || null;
 }
+
+// ---------------------------------------------------------------------------
+// Backend API helper (uses JWT Bearer token)
+// ---------------------------------------------------------------------------
+
+async function backendRequest(action, method, payload) {
+    const jwt = await getJWT();
+    if (!jwt) throw new Error("Not authenticated");
+    const opts = {
+        method: method || "GET",
+        headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${jwt}`
+        }
+    };
+    if (payload !== undefined && method !== "GET") {
+        opts.body = JSON.stringify(payload);
+    }
+    const res = await fetch(`${API_BASE}?action=${action}`, opts);
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || "Request failed");
+    return data;
+}
+
+// ---------------------------------------------------------------------------
+// Auth wiring
+// ---------------------------------------------------------------------------
 
 function wireLogin() {
     const loginForm = document.getElementById("portal-login-form");
@@ -47,6 +85,7 @@ function wireLogin() {
     const registerError = document.getElementById("register-error");
     const showRegister = document.getElementById("show-register");
     const showLogin = document.getElementById("show-login");
+    const googleBtn = document.getElementById("google-signin-btn");
 
     const toggleForms = (showRegisterForm) => {
         loginForm.classList.toggle("hidden", showRegisterForm);
@@ -60,54 +99,82 @@ function wireLogin() {
 
     loginForm.addEventListener("submit", async (e) => {
         e.preventDefault();
+        errorBox.textContent = "";
         const email = emailInput.value.trim().toLowerCase();
         const password = passwordInput.value;
-
         try {
-            const res = await apiRequest("login", "POST", { email, password });
-            setAuth(email, res.token);
-            errorBox.textContent = "";
+            const res = await neonAuthFetch("/sign-in/email", "POST", { email, password });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) throw new Error(data.message || data.error || "Sign in failed.");
+            state.user = data.user || null;
             await enterPortal();
         } catch (err) {
-            errorBox.textContent = err.message || "Login failed.";
+            errorBox.textContent = err.message || "Sign in failed.";
         }
     });
 
     registerForm.addEventListener("submit", async (e) => {
         e.preventDefault();
+        registerError.textContent = "";
+        const name = document.getElementById("register-name").value.trim();
         const email = document.getElementById("register-email").value.trim().toLowerCase();
         const password = document.getElementById("register-password").value;
-        const confirm = document.getElementById("register-confirm").value;
-        if (password !== confirm) {
-            registerError.textContent = "Passwords do not match.";
-            return;
-        }
         try {
-            const res = await apiRequest("register", "POST", { email, password });
-            setAuth(email, res.token);
-            registerError.textContent = "";
+            const res = await neonAuthFetch("/sign-up/email", "POST", { email, password, name });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) throw new Error(data.message || data.error || "Registration failed.");
+            state.user = data.user || null;
             await enterPortal();
         } catch (err) {
             registerError.textContent = err.message || "Registration failed.";
         }
     });
 
-    logoutBtn.addEventListener("click", () => {
-        clearAuth();
+    googleBtn?.addEventListener("click", async () => {
+        try {
+            const callbackURL = window.location.origin + "/portal.html";
+            const res = await neonAuthFetch("/sign-in/social", "POST", { provider: "google", callbackURL });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) throw new Error(data.message || data.error || "Google sign in failed.");
+            if (data.url) {
+                window.location.href = data.url;
+            }
+        } catch (err) {
+            document.getElementById("login-error").textContent = err.message || "Google sign in failed.";
+        }
+    });
+
+    logoutBtn.addEventListener("click", async () => {
+        try {
+            await neonAuthFetch("/sign-out", "POST");
+        } catch (_) {
+            // ignore sign-out errors
+        }
+        state.jwt = null;
+        state.user = null;
         document.getElementById("portal-app").classList.add("hidden");
         document.getElementById("login-screen").classList.remove("hidden");
     });
 }
 
-function hydrateSession() {
-    const storedToken = localStorage.getItem(AUTH_TOKEN_KEY);
-    const storedEmail = localStorage.getItem(AUTH_EMAIL_KEY);
-    if (!storedToken || !storedEmail) return;
-    state.userEmail = storedEmail;
-    enterPortal().catch(() => clearAuth());
+async function hydrateSession() {
+    try {
+        const res = await neonAuthFetch("/get-session", "GET");
+        const data = await res.json().catch(() => null);
+        if (data && data.user) {
+            state.user = data.user;
+            await enterPortal();
+        }
+    } catch (_) {
+        // No active session — stay on login screen
+    }
 }
 
 async function enterPortal() {
+    // Get a fresh JWT and stash it in memory
+    const jwt = await getJWT();
+    state.jwt = jwt;
+
     document.getElementById("login-screen").classList.add("hidden");
     document.getElementById("portal-app").classList.remove("hidden");
     initMap();
@@ -119,6 +186,37 @@ async function enterPortal() {
     refreshUI();
 }
 
+// ---------------------------------------------------------------------------
+// Landmark persistence (via our backend, authenticated with JWT)
+// ---------------------------------------------------------------------------
+
+async function loadLandmarksFromServer() {
+    try {
+        const data = await backendRequest("landmarks", "GET");
+        state.landmarks = data.landmarks || [];
+        state.landmarks.forEach(lm => {
+            if (!state.groups.some(g => g.id === lm.group)) {
+                createGroup(lm.group, randomColor());
+            }
+        });
+    } catch (err) {
+        console.error("Load landmarks failed", err);
+        state.landmarks = [];
+    }
+}
+
+async function persistLandmarks() {
+    try {
+        await backendRequest("landmarks", "POST", { landmarks: state.landmarks });
+    } catch (err) {
+        console.error("Save landmarks failed", err);
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Map
+// ---------------------------------------------------------------------------
+
 function initMap() {
     if (isMapReady) return;
     map = L.map("portal-map").setView([31.9686, -99.9018], 5);
@@ -128,6 +226,10 @@ function initMap() {
     markersLayer = L.layerGroup().addTo(map);
     isMapReady = true;
 }
+
+// ---------------------------------------------------------------------------
+// File uploads
+// ---------------------------------------------------------------------------
 
 function wireUploads() {
     const fileInput = document.getElementById("file-upload");
@@ -207,26 +309,9 @@ function readFile(file) {
     reader.readAsText(file);
 }
 
-function getAuthHeaders() {
-    const token = localStorage.getItem(AUTH_TOKEN_KEY);
-    return token ? { Authorization: `Bearer ${token}` } : {};
-}
-
-async function apiRequest(action, method, payload) {
-    const res = await fetch(`${API_BASE}?action=${action}`, {
-        method,
-        headers: {
-            "Content-Type": "application/json",
-            ...getAuthHeaders()
-        },
-        body: method === "GET" ? undefined : JSON.stringify(payload || {})
-    });
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) {
-        throw new Error(data.error || "Request failed");
-    }
-    return data;
-}
+// ---------------------------------------------------------------------------
+// KML / CSV parsers
+// ---------------------------------------------------------------------------
 
 function parseKML(content) {
     const parser = new DOMParser();
@@ -248,33 +333,6 @@ function parseKML(content) {
     });
 
     return landmarks;
-}
-
-async function loadLandmarksFromServer() {
-    if (!state.userEmail || !localStorage.getItem(AUTH_TOKEN_KEY)) {
-        state.landmarks = [];
-        return;
-    }
-    try {
-        const data = await apiRequest("landmarks", "GET");
-        state.landmarks = data.landmarks || [];
-        state.landmarks.forEach(lm => {
-            if (!state.groups.some(g => g.id === lm.group)) {
-                createGroup(lm.group, randomColor());
-            }
-        });
-    } catch (err) {
-        console.error("Load landmarks failed", err);
-    }
-}
-
-async function persistLandmarks() {
-    if (!state.userEmail || !localStorage.getItem(AUTH_TOKEN_KEY)) return;
-    try {
-        await apiRequest("landmarks", "POST", { landmarks: state.landmarks });
-    } catch (err) {
-        console.error("Save landmarks failed", err);
-    }
 }
 
 async function loadOverlay(addToMap = true) {
@@ -359,6 +417,10 @@ function parseCSVLine(line) {
     return line.split(/,(?=(?:[^"]*"[^"]*")*[^"]*$)/).map(val => val.replace(/^"|"$/g, "").trim());
 }
 
+// ---------------------------------------------------------------------------
+// Utilities
+// ---------------------------------------------------------------------------
+
 function slugify(text) {
     return text.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "") || "general";
 }
@@ -377,6 +439,10 @@ function addLandmarks(landmarks, sourceLabel) {
     fitBounds();
     persistLandmarks();
 }
+
+// ---------------------------------------------------------------------------
+// Groups
+// ---------------------------------------------------------------------------
 
 function wireGroups() {
     const groupForm = document.getElementById("group-form");
@@ -405,6 +471,10 @@ function createGroup(name, color) {
     state.groups.push({ id, name: name || "Group", color: color || randomColor() });
     refreshUI();
 }
+
+// ---------------------------------------------------------------------------
+// Landmark controls
+// ---------------------------------------------------------------------------
 
 function wireLandmarkControls() {
     document.getElementById("clear-landmarks").addEventListener("click", () => {
@@ -435,6 +505,10 @@ function wireOverlayToggle() {
         }
     });
 }
+
+// ---------------------------------------------------------------------------
+// Render
+// ---------------------------------------------------------------------------
 
 function refreshUI() {
     renderGroupSelects();

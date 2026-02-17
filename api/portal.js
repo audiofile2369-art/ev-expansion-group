@@ -1,10 +1,14 @@
 const { Client } = require("pg");
-const crypto = require("crypto");
-const util = require("util");
+const { jwtVerify, createRemoteJWKSet } = require("jose");
 
-const scryptAsync = util.promisify(crypto.scrypt);
-const tokenSecret = process.env.PORTAL_TOKEN_SECRET || "dev-portal-secret";
-const connectionString = process.env.DATABASE_URL || process.env.POSTGRES_URL || process.env.POSTGRES_URL_NON_POOLING || process.env.POSTGRES_PRISMA_URL;
+const JWKS_URL = "https://ep-dawn-credit-aihwzzk3.neonauth.c-4.us-east-1.aws.neon.tech/neondb/auth/.well-known/jwks.json";
+const jwks = createRemoteJWKSet(new URL(JWKS_URL));
+
+const connectionString =
+    process.env.DATABASE_URL ||
+    process.env.POSTGRES_URL ||
+    process.env.POSTGRES_URL_NON_POOLING ||
+    process.env.POSTGRES_PRISMA_URL;
 
 module.exports = async function handler(req, res) {
     res.setHeader("Content-Type", "application/json");
@@ -33,28 +37,22 @@ module.exports = async function handler(req, res) {
         await client.connect();
         await ensureTables(client);
 
-        if (action === "register" && req.method === "POST") {
-            return await handleRegister(client, body, res);
-        }
-
-        if (action === "login" && req.method === "POST") {
-            return await handleLogin(client, body, res);
-        }
-
-        const email = authenticate(req);
-        if (!email) {
+        const user = await authenticate(req);
+        if (!user) {
             return res.status(401).json({ error: "Unauthorized" });
         }
 
+        const userId = user.sub || user.id;
+
         if (action === "landmarks") {
             if (req.method === "GET") {
-                return await listLandmarks(client, email, res);
+                return await listLandmarks(client, userId, res);
             }
             if (req.method === "POST") {
-                return await saveLandmarks(client, email, body, res);
+                return await saveLandmarks(client, userId, body, res);
             }
             if (req.method === "DELETE") {
-                await client.query("DELETE FROM portal_landmarks WHERE user_email=$1", [email]);
+                await client.query("DELETE FROM portal_landmarks WHERE user_id=$1", [userId]);
                 return res.status(200).json({ ok: true });
             }
         }
@@ -68,49 +66,24 @@ module.exports = async function handler(req, res) {
     }
 };
 
-function authenticate(req) {
+async function authenticate(req) {
     const header = req.headers.authorization || "";
     if (!header.startsWith("Bearer ")) return null;
     const token = header.slice(7);
-    return verifyToken(token);
-}
-
-function signToken(email) {
-    const hmac = crypto.createHmac("sha256", tokenSecret).update(email).digest("hex");
-    return `${email}:${hmac}`;
-}
-
-function verifyToken(token) {
-    const idx = (token || "").indexOf(":");
-    if (idx < 1) return null;
-    const email = token.slice(0, idx);
-    const sig = token.slice(idx + 1);
-    if (!sig) return null;
-    const expected = crypto.createHmac("sha256", tokenSecret).update(email).digest("hex");
     try {
-        if (crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(expected))) {
-            return email;
-        }
-    } catch {
+        const { payload } = await jwtVerify(token, jwks);
+        return payload;
+    } catch (err) {
+        console.error("JWT verification failed", err.message);
         return null;
     }
-    return null;
 }
 
 async function ensureTables(client) {
     await client.query(`
-        CREATE TABLE IF NOT EXISTS portal_users (
-            id BIGSERIAL PRIMARY KEY,
-            email TEXT UNIQUE NOT NULL,
-            password_hash TEXT NOT NULL,
-            password_salt TEXT NOT NULL,
-            created_at TIMESTAMPTZ DEFAULT now()
-        );
-    `);
-    await client.query(`
         CREATE TABLE IF NOT EXISTS portal_landmarks (
             id BIGSERIAL PRIMARY KEY,
-            user_email TEXT NOT NULL REFERENCES portal_users(email) ON DELETE CASCADE,
+            user_id TEXT NOT NULL,
             name TEXT NOT NULL,
             lat DOUBLE PRECISION NOT NULL,
             lng DOUBLE PRECISION NOT NULL,
@@ -121,57 +94,15 @@ async function ensureTables(client) {
     `);
 }
 
-async function handleRegister(client, body, res) {
-    const email = (body.email || "").toLowerCase().trim();
-    const password = body.password || "";
-    if (!email || !password) {
-        return res.status(400).json({ error: "Email and password required" });
-    }
-    const existing = await client.query("SELECT 1 FROM portal_users WHERE email=$1", [email]);
-    if (existing.rowCount) {
-        return res.status(409).json({ error: "User already exists" });
-    }
-    const salt = crypto.randomBytes(16).toString("hex");
-    const derived = await scryptAsync(password, salt, 64);
-    const hash = Buffer.from(derived).toString("hex");
-    await client.query(
-        "INSERT INTO portal_users (email, password_hash, password_salt) VALUES ($1,$2,$3)",
-        [email, hash, salt]
-    );
-    return res.status(200).json({ token: signToken(email) });
-}
-
-async function handleLogin(client, body, res) {
-    const email = (body.email || "").toLowerCase().trim();
-    const password = body.password || "";
-    if (!email || !password) {
-        return res.status(400).json({ error: "Email and password required" });
-    }
-    const user = await client.query(
-        "SELECT password_hash, password_salt FROM portal_users WHERE email=$1",
-        [email]
-    );
-    if (!user.rowCount) {
-        return res.status(401).json({ error: "Invalid credentials" });
-    }
-    const { password_hash: storedHash, password_salt: salt } = user.rows[0];
-    const derived = await scryptAsync(password, salt, 64);
-    const hash = Buffer.from(derived).toString("hex");
-    if (hash !== storedHash) {
-        return res.status(401).json({ error: "Invalid credentials" });
-    }
-    return res.status(200).json({ token: signToken(email) });
-}
-
-async function listLandmarks(client, email, res) {
+async function listLandmarks(client, userId, res) {
     const rows = await client.query(
-        "SELECT id, name, lat, lng, grp as \"group\", source FROM portal_landmarks WHERE user_email=$1 ORDER BY id",
-        [email]
+        "SELECT id, name, lat, lng, grp as \"group\", source FROM portal_landmarks WHERE user_id=$1 ORDER BY id",
+        [userId]
     );
     return res.status(200).json({ landmarks: rows.rows });
 }
 
-async function saveLandmarks(client, email, body, res) {
+async function saveLandmarks(client, userId, body, res) {
     const landmarks = Array.isArray(body.landmarks) ? body.landmarks : [];
     const cleaned = landmarks
         .map(lm => ({
@@ -184,11 +115,11 @@ async function saveLandmarks(client, email, body, res) {
         .filter(lm => lm.name && !Number.isNaN(lm.lat) && !Number.isNaN(lm.lng));
 
     await client.query("BEGIN");
-    await client.query("DELETE FROM portal_landmarks WHERE user_email=$1", [email]);
+    await client.query("DELETE FROM portal_landmarks WHERE user_id=$1", [userId]);
     for (const lm of cleaned) {
         await client.query(
-            "INSERT INTO portal_landmarks (user_email, name, lat, lng, grp, source) VALUES ($1,$2,$3,$4,$5,$6)",
-            [email, lm.name, lm.lat, lm.lng, lm.group, lm.source]
+            "INSERT INTO portal_landmarks (user_id, name, lat, lng, grp, source) VALUES ($1,$2,$3,$4,$5,$6)",
+            [userId, lm.name, lm.lat, lm.lng, lm.group, lm.source]
         );
     }
     await client.query("COMMIT");
