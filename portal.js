@@ -132,7 +132,7 @@ function wireLogin() {
 
     googleBtn?.addEventListener("click", async () => {
         try {
-            const callbackURL = window.location.origin + "/portal.html";
+            const callbackURL = window.location.origin + window.location.pathname;
             const res = await neonAuthFetch("/sign-in/social", "POST", { provider: "google", callbackURL });
             const data = await res.json().catch(() => ({}));
             if (!res.ok) throw new Error(data.message || data.error || "Google sign in failed.");
