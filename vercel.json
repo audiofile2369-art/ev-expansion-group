@@ -6,9 +6,14 @@
       "destination": "/api/:path*"
     },
     {
-      "source": "/(.*)",
+      "source": "/",
       "has": [{ "type": "host", "value": "portal.evexpansiongroup.com" }],
-      "destination": "/portal/$1"
+      "destination": "/portal/index.html"
+    },
+    {
+      "source": "/:path*",
+      "has": [{ "type": "host", "value": "portal.evexpansiongroup.com" }],
+      "destination": "/portal/:path*"
     }
   ]
 }
