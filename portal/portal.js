@@ -1,12 +1,14 @@
-const ALLOWED_USER = "team@evexpansiongroup.com";
-const ALLOWED_PASSWORD = "chargeon!";
-
 const state = {
     groups: [{ id: "general", name: "General", color: "#10b981" }],
     landmarks: [],
     files: [],
-    filter: "all"
+    filter: "all",
+    userEmail: null
 };
+
+const API_BASE = "/api/portal";
+const AUTH_TOKEN_KEY = "evxPortalToken";
+const AUTH_EMAIL_KEY = "evxPortalEmail";
 
 let map;
 let markersLayer;
@@ -23,42 +25,89 @@ document.addEventListener("DOMContentLoaded", () => {
     hydrateSession();
 });
 
+function setAuth(email, token) {
+    state.userEmail = email;
+    localStorage.setItem(AUTH_EMAIL_KEY, email);
+    localStorage.setItem(AUTH_TOKEN_KEY, token);
+}
+
+function clearAuth() {
+    state.userEmail = null;
+    localStorage.removeItem(AUTH_EMAIL_KEY);
+    localStorage.removeItem(AUTH_TOKEN_KEY);
+}
+
 function wireLogin() {
     const loginForm = document.getElementById("portal-login-form");
+    const registerForm = document.getElementById("portal-register-form");
     const logoutBtn = document.getElementById("logout-btn");
     const emailInput = document.getElementById("portal-email");
     const passwordInput = document.getElementById("portal-password");
     const errorBox = document.getElementById("login-error");
+    const registerError = document.getElementById("register-error");
+    const showRegister = document.getElementById("show-register");
+    const showLogin = document.getElementById("show-login");
 
-    loginForm.addEventListener("submit", (e) => {
+    const toggleForms = (showRegisterForm) => {
+        loginForm.classList.toggle("hidden", showRegisterForm);
+        registerForm.classList.toggle("hidden", !showRegisterForm);
+        errorBox.textContent = "";
+        registerError.textContent = "";
+    };
+
+    showRegister?.addEventListener("click", () => toggleForms(true));
+    showLogin?.addEventListener("click", () => toggleForms(false));
+
+    loginForm.addEventListener("submit", async (e) => {
         e.preventDefault();
         const email = emailInput.value.trim().toLowerCase();
         const password = passwordInput.value;
 
-        if (email === ALLOWED_USER && password === ALLOWED_PASSWORD) {
-            localStorage.setItem("evxPortalAuth", "true");
+        try {
+            const res = await apiRequest("login", "POST", { email, password });
+            setAuth(email, res.token);
             errorBox.textContent = "";
-            enterPortal();
-        } else {
-            errorBox.textContent = "Invalid credentials. Use your team login or the demo credentials.";
+            await enterPortal();
+        } catch (err) {
+            errorBox.textContent = err.message || "Login failed.";
+        }
+    });
+
+    registerForm.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const email = document.getElementById("register-email").value.trim().toLowerCase();
+        const password = document.getElementById("register-password").value;
+        const confirm = document.getElementById("register-confirm").value;
+        if (password !== confirm) {
+            registerError.textContent = "Passwords do not match.";
+            return;
+        }
+        try {
+            const res = await apiRequest("register", "POST", { email, password });
+            setAuth(email, res.token);
+            registerError.textContent = "";
+            await enterPortal();
+        } catch (err) {
+            registerError.textContent = err.message || "Registration failed.";
         }
     });
 
     logoutBtn.addEventListener("click", () => {
-        localStorage.removeItem("evxPortalAuth");
+        clearAuth();
         document.getElementById("portal-app").classList.add("hidden");
         document.getElementById("login-screen").classList.remove("hidden");
     });
 }
 
 function hydrateSession() {
-    const authed = localStorage.getItem("evxPortalAuth") === "true";
-    if (authed) {
-        enterPortal();
-    }
+    const storedToken = localStorage.getItem(AUTH_TOKEN_KEY);
+    const storedEmail = localStorage.getItem(AUTH_EMAIL_KEY);
+    if (!storedToken || !storedEmail) return;
+    state.userEmail = storedEmail;
+    enterPortal().catch(() => clearAuth());
 }
 
-function enterPortal() {
+async function enterPortal() {
     document.getElementById("login-screen").classList.add("hidden");
     document.getElementById("portal-app").classList.remove("hidden");
     initMap();
@@ -66,6 +115,7 @@ function enterPortal() {
     if (overlayToggle?.checked) {
         loadOverlay(true);
     }
+    await loadLandmarksFromServer();
     refreshUI();
 }
 
@@ -157,6 +207,27 @@ function readFile(file) {
     reader.readAsText(file);
 }
 
+function getAuthHeaders() {
+    const token = localStorage.getItem(AUTH_TOKEN_KEY);
+    return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
+async function apiRequest(action, method, payload) {
+    const res = await fetch(`${API_BASE}?action=${action}`, {
+        method,
+        headers: {
+            "Content-Type": "application/json",
+            ...getAuthHeaders()
+        },
+        body: method === "GET" ? undefined : JSON.stringify(payload || {})
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+        throw new Error(data.error || "Request failed");
+    }
+    return data;
+}
+
 function parseKML(content) {
     const parser = new DOMParser();
     const xml = parser.parseFromString(content, "text/xml");
@@ -177,6 +248,33 @@ function parseKML(content) {
     });
 
     return landmarks;
+}
+
+async function loadLandmarksFromServer() {
+    if (!state.userEmail || !localStorage.getItem(AUTH_TOKEN_KEY)) {
+        state.landmarks = [];
+        return;
+    }
+    try {
+        const data = await apiRequest("landmarks", "GET");
+        state.landmarks = data.landmarks || [];
+        state.landmarks.forEach(lm => {
+            if (!state.groups.some(g => g.id === lm.group)) {
+                createGroup(lm.group, randomColor());
+            }
+        });
+    } catch (err) {
+        console.error("Load landmarks failed", err);
+    }
+}
+
+async function persistLandmarks() {
+    if (!state.userEmail || !localStorage.getItem(AUTH_TOKEN_KEY)) return;
+    try {
+        await apiRequest("landmarks", "POST", { landmarks: state.landmarks });
+    } catch (err) {
+        console.error("Save landmarks failed", err);
+    }
 }
 
 async function loadOverlay(addToMap = true) {
@@ -277,6 +375,7 @@ function addLandmarks(landmarks, sourceLabel) {
     state.landmarks.push(...withIds);
     refreshUI();
     fitBounds();
+    persistLandmarks();
 }
 
 function wireGroups() {
@@ -312,6 +411,7 @@ function wireLandmarkControls() {
         if (confirm("Clear all landmarks from this session?")) {
             state.landmarks = [];
             refreshUI();
+            persistLandmarks();
         }
     });
 
@@ -449,11 +549,13 @@ function renderLandmarks() {
         selector.addEventListener("change", () => {
             lm.group = selector.value;
             refreshUI();
+            persistLandmarks();
         });
 
         row.querySelector("[data-remove]").addEventListener("click", () => {
             state.landmarks = state.landmarks.filter(item => item.id !== lm.id);
             refreshUI();
+            persistLandmarks();
         });
     });
 }
