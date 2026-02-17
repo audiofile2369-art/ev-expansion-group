@@ -174,7 +174,11 @@ async function hydrateSession() {
         // Neon Auth returns { user: {...}, session: {...} }
         if (data && (data.user || data.session)) {
             state.user = data.user || data.session?.user || data;
+            console.log("User authenticated, entering portal...");
             await enterPortal();
+            console.log("Portal entered successfully");
+        } else {
+            console.log("No valid session found");
         }
     } catch (err) {
         console.error("Session check failed:", err);
@@ -183,19 +187,30 @@ async function hydrateSession() {
 }
 
 async function enterPortal() {
-    // Get a fresh JWT and stash it in memory
-    const jwt = await getJWT();
-    state.jwt = jwt;
+    try {
+        // Get a fresh JWT and stash it in memory
+        const jwt = await getJWT();
+        state.jwt = jwt;
+        console.log("JWT obtained:", jwt ? "yes" : "no");
 
-    document.getElementById("login-screen").classList.add("hidden");
-    document.getElementById("portal-app").classList.remove("hidden");
-    initMap();
-    const overlayToggle = document.getElementById("overlay-toggle");
-    if (overlayToggle?.checked) {
-        loadOverlay(true);
+        document.getElementById("login-screen").classList.add("hidden");
+        document.getElementById("portal-app").classList.remove("hidden");
+        initMap();
+        
+        const overlayToggle = document.getElementById("overlay-toggle");
+        if (overlayToggle?.checked) {
+            loadOverlay(true);
+        }
+        
+        // Load landmarks but don't block if it fails
+        loadLandmarksFromServer().catch(err => {
+            console.warn("Could not load landmarks from server:", err.message);
+        });
+        
+        refreshUI();
+    } catch (err) {
+        console.error("enterPortal failed:", err);
     }
-    await loadLandmarksFromServer();
-    refreshUI();
 }
 
 // ---------------------------------------------------------------------------
