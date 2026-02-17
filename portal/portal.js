@@ -17,12 +17,7 @@ let overlayLayer;
 let overlayLoaded = false;
 
 document.addEventListener("DOMContentLoaded", () => {
-    wireLogin();
-    wireUploads();
-    wireGroups();
-    wireLandmarkControls();
-    wireOverlayToggle();
-    hydrateSession();
+    checkAuthAndInit();
 });
 
 // ---------------------------------------------------------------------------
@@ -49,6 +44,70 @@ async function getJWT() {
 }
 
 // ---------------------------------------------------------------------------
+// Auth check - redirect to login if not authenticated
+// ---------------------------------------------------------------------------
+
+async function checkAuthAndInit() {
+    // Handle OAuth callback - clean up URL params after redirect
+    const url = new URL(window.location.href);
+    if (url.searchParams.has("code") || url.searchParams.has("state")) {
+        await new Promise(r => setTimeout(r, 500));
+        window.history.replaceState({}, document.title, url.pathname);
+    }
+
+    try {
+        const res = await neonAuthFetch("/get-session", "GET");
+        const data = await res.json().catch(() => null);
+        
+        if (data && (data.user || data.session)) {
+            state.user = data.user || data.session?.user || data;
+            initPortal();
+        } else {
+            // Not logged in - redirect to login page
+            window.location.href = "login.html";
+        }
+    } catch (err) {
+        console.error("Auth check failed:", err);
+        window.location.href = "login.html";
+    }
+}
+
+async function initPortal() {
+    const jwt = await getJWT();
+    state.jwt = jwt;
+
+    wireUploads();
+    wireGroups();
+    wireLandmarkControls();
+    wireOverlayToggle();
+    wireLogout();
+    initMap();
+    
+    const overlayToggle = document.getElementById("overlay-toggle");
+    if (overlayToggle?.checked) {
+        loadOverlay(true);
+    }
+    
+    loadLandmarksFromServer().catch(err => {
+        console.warn("Could not load landmarks:", err.message);
+    });
+    
+    refreshUI();
+}
+
+function wireLogout() {
+    const logoutBtn = document.getElementById("logout-btn");
+    if (!logoutBtn) return;
+    
+    logoutBtn.addEventListener("click", async () => {
+        try {
+            await neonAuthFetch("/sign-out", "POST");
+        } catch (_) {}
+        window.location.href = "login.html";
+    });
+}
+
+// ---------------------------------------------------------------------------
 // Backend API helper (uses JWT Bearer token)
 // ---------------------------------------------------------------------------
 
@@ -71,147 +130,6 @@ async function backendRequest(action, method, payload) {
     return data;
 }
 
-// ---------------------------------------------------------------------------
-// Auth wiring
-// ---------------------------------------------------------------------------
-
-function wireLogin() {
-    const loginForm = document.getElementById("portal-login-form");
-    const registerForm = document.getElementById("portal-register-form");
-    const logoutBtn = document.getElementById("logout-btn");
-    const emailInput = document.getElementById("portal-email");
-    const passwordInput = document.getElementById("portal-password");
-    const errorBox = document.getElementById("login-error");
-    const registerError = document.getElementById("register-error");
-    const showRegister = document.getElementById("show-register");
-    const showLogin = document.getElementById("show-login");
-    const googleBtn = document.getElementById("google-signin-btn");
-
-    const toggleForms = (showRegisterForm) => {
-        loginForm.classList.toggle("hidden", showRegisterForm);
-        registerForm.classList.toggle("hidden", !showRegisterForm);
-        errorBox.textContent = "";
-        registerError.textContent = "";
-    };
-
-    showRegister?.addEventListener("click", () => toggleForms(true));
-    showLogin?.addEventListener("click", () => toggleForms(false));
-
-    loginForm.addEventListener("submit", async (e) => {
-        e.preventDefault();
-        errorBox.textContent = "";
-        const email = emailInput.value.trim().toLowerCase();
-        const password = passwordInput.value;
-        try {
-            const res = await neonAuthFetch("/sign-in/email", "POST", { email, password });
-            const data = await res.json().catch(() => ({}));
-            if (!res.ok) throw new Error(data.message || data.error || "Sign in failed.");
-            state.user = data.user || null;
-            await enterPortal();
-        } catch (err) {
-            errorBox.textContent = err.message || "Sign in failed.";
-        }
-    });
-
-    registerForm.addEventListener("submit", async (e) => {
-        e.preventDefault();
-        registerError.textContent = "";
-        const name = document.getElementById("register-name").value.trim();
-        const email = document.getElementById("register-email").value.trim().toLowerCase();
-        const password = document.getElementById("register-password").value;
-        try {
-            const res = await neonAuthFetch("/sign-up/email", "POST", { email, password, name });
-            const data = await res.json().catch(() => ({}));
-            if (!res.ok) throw new Error(data.message || data.error || "Registration failed.");
-            state.user = data.user || null;
-            await enterPortal();
-        } catch (err) {
-            registerError.textContent = err.message || "Registration failed.";
-        }
-    });
-
-    googleBtn?.addEventListener("click", async () => {
-        try {
-            const callbackURL = window.location.origin + window.location.pathname;
-            const res = await neonAuthFetch("/sign-in/social", "POST", { provider: "google", callbackURL });
-            const data = await res.json().catch(() => ({}));
-            if (!res.ok) throw new Error(data.message || data.error || "Google sign in failed.");
-            if (data.url) {
-                window.location.href = data.url;
-            }
-        } catch (err) {
-            document.getElementById("login-error").textContent = err.message || "Google sign in failed.";
-        }
-    });
-
-    logoutBtn.addEventListener("click", async () => {
-        try {
-            await neonAuthFetch("/sign-out", "POST");
-        } catch (_) {
-            // ignore sign-out errors
-        }
-        state.jwt = null;
-        state.user = null;
-        document.getElementById("portal-app").classList.add("hidden");
-        document.getElementById("login-screen").classList.remove("hidden");
-    });
-}
-
-async function hydrateSession() {
-    // Handle OAuth callback - clean up URL params after redirect
-    const url = new URL(window.location.href);
-    if (url.searchParams.has("code") || url.searchParams.has("state")) {
-        // OAuth callback detected - give Neon Auth a moment to set the session cookie
-        await new Promise(r => setTimeout(r, 500));
-        // Clean up URL
-        window.history.replaceState({}, document.title, url.pathname);
-    }
-
-    try {
-        const res = await neonAuthFetch("/get-session", "GET");
-        const data = await res.json().catch(() => null);
-        console.log("Session check:", data);
-        // Neon Auth returns { user: {...}, session: {...} }
-        if (data && (data.user || data.session)) {
-            state.user = data.user || data.session?.user || data;
-            console.log("User authenticated, entering portal...");
-            await enterPortal();
-            console.log("Portal entered successfully");
-        } else {
-            console.log("No valid session found");
-        }
-    } catch (err) {
-        console.error("Session check failed:", err);
-        // No active session — stay on login screen
-    }
-}
-
-async function enterPortal() {
-    try {
-        // Get a fresh JWT and stash it in memory
-        const jwt = await getJWT();
-        state.jwt = jwt;
-        console.log("JWT obtained:", jwt ? "yes" : "no");
-
-        document.getElementById("login-screen").classList.add("hidden");
-        document.getElementById("portal-app").classList.remove("hidden");
-        initMap();
-        
-        const overlayToggle = document.getElementById("overlay-toggle");
-        if (overlayToggle?.checked) {
-            loadOverlay(true);
-        }
-        
-        // Load landmarks but don't block if it fails
-        loadLandmarksFromServer().catch(err => {
-            console.warn("Could not load landmarks from server:", err.message);
-        });
-        
-        refreshUI();
-    } catch (err) {
-        console.error("enterPortal failed:", err);
-    }
-}
 
 // ---------------------------------------------------------------------------
 // Landmark persistence (via our backend, authenticated with JWT)
